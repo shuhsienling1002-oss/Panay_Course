@@ -4,52 +4,62 @@ from datetime import datetime
 from streamlit_gsheets import GSheetsConnection
 
 # ==========================================
-# 0. 設定與 Google Sheets 連結
+# 0. 設定與 Google Sheets 連線 (Layer 1: Cloud Kernel)
 # ==========================================
 st.set_page_config(page_title="書嫻訓練日誌", page_icon="🏋️‍♀️")
 
+# 標題區
 st.title("🏋️‍♀️ 書嫻一月備賽日誌")
 st.caption("M1 47kg Class | Road to April 4th")
 
-# --- 連結 Google Sheets ---
-# 建立連線物件
+# --- 建立連線 ---
 try:
     conn = st.connection("gsheets", type=GSheetsConnection)
 except Exception as e:
-    st.error("⚠️ 尚未設定 Google Sheets 連線！請檢查 .streamlit/secrets.toml")
+    st.error("⚠️ 連線失敗！請檢查 Streamlit Cloud 的 Secrets 設定。")
     st.stop()
 
 # --- 讀取資料函數 ---
 def load_data():
     try:
-        # 讀取試算表，如果空的會報錯，所以要 try-except
-        df = conn.read(worksheet="Log", ttl=0) # ttl=0 表示不快取，每次都抓最新的
+        # ttl=0 代表不快取，每次都抓最新的
+        df = conn.read(worksheet="Log", ttl=0)
+        # 如果讀出來是空的，回傳一個標準格式
+        if df.empty:
+            return pd.DataFrame(columns=["Date", "Week", "Day", "Type", "Squat", "Bench", "Deadlift", "Note"])
         return df
     except:
-        # 如果讀不到 (可能是新表)，回傳空的 DataFrame
         return pd.DataFrame(columns=["Date", "Week", "Day", "Type", "Squat", "Bench", "Deadlift", "Note"])
 
 # --- 寫入資料函數 ---
 def save_log(week, day, type_of_day, sq_val, bp_val, dl_val, note):
-    df = load_data()
-    
-    new_entry = pd.DataFrame([{
-        "Date": datetime.now().strftime("%Y-%m-%d %H:%M"),
-        "Week": week,
-        "Day": day,
-        "Type": type_of_day,
-        "Squat": sq_val,
-        "Bench": bp_val,
-        "Deadlift": dl_val,
-        "Note": note
-    }])
-    
-    # 合併新舊資料
-    updated_df = pd.concat([df, new_entry], ignore_index=True)
-    
-    # 寫回 Google Sheet
-    conn.update(worksheet="Log", data=updated_df)
-    return updated_df
+    try:
+        df = load_data()
+        
+        # 準備新的一筆資料
+        new_entry = pd.DataFrame([{
+            "Date": datetime.now().strftime("%Y-%m-%d %H:%M"),
+            "Week": week,
+            "Day": day,
+            "Type": type_of_day,
+            "Squat": sq_val,
+            "Bench": bp_val,
+            "Deadlift": dl_val,
+            "Note": note
+        }])
+        
+        # 合併並寫回
+        # 如果原本的 df 有資料，就合併；如果是空的，就直接用新的
+        if not df.empty:
+            updated_df = pd.concat([df, new_entry], ignore_index=True)
+        else:
+            updated_df = new_entry
+            
+        conn.update(worksheet="Log", data=updated_df)
+        return True
+    except Exception as e:
+        st.error(f"儲存失敗: {e}")
+        return False
 
 # ==========================================
 # 1. 課表數據 (完整保留)
@@ -170,7 +180,7 @@ schedule = {
 # ==========================================
 
 # 建立兩個分頁
-tab1, tab2 = st.tabs(["🔥 今日訓練", "📜 歷史紀錄 (Google Sheet)"])
+tab1, tab2 = st.tabs(["🔥 今日訓練", "📜 雲端歷史紀錄"])
 
 # --- Tab 1: 今日訓練 ---
 with tab1:
@@ -210,12 +220,13 @@ with tab1:
             note_test = st.text_area("測驗心得")
 
             st.divider()
-            submitted = st.form_submit_button("🚀 儲存測驗成績")
+            submitted = st.form_submit_button("🚀 儲存測驗成績 (上傳雲端)")
             
             if submitted:
-                save_log(selected_week, selected_day, "Testing", sq_result, bp_result, dl_result, note_test)
-                st.balloons()
-                st.success("🎉 成績已上傳至 Google Sheets！")
+                success = save_log(selected_week, selected_day, "Testing", sq_result, bp_result, dl_result, note_test)
+                if success:
+                    st.balloons()
+                    st.success("🎉 成績已安全上傳至 Google Sheets！")
 
     else:
         # 一般訓練日
@@ -238,18 +249,21 @@ with tab1:
 
         user_note = st.text_area("訓練筆記", height=100, placeholder="紀錄一下...")
         
-        if st.button("💾 儲存今日訓練紀錄"):
-            save_log(selected_week, selected_day, "Training", "-", "-", "-", user_note)
-            st.success("✅ 訓練筆記已上傳至 Google Sheets！")
+        if st.button("💾 儲存今日訓練 (上傳雲端)"):
+            success = save_log(selected_week, selected_day, "Training", "-", "-", "-", user_note)
+            if success:
+                st.success("✅ 訓練筆記已安全上傳至 Google Sheets！")
 
 # --- Tab 2: 歷史紀錄 ---
 with tab2:
-    st.header("📜 來自 Google Sheets 的紀錄")
-    try:
-        df = load_data()
-        if not df.empty:
-            st.dataframe(df.iloc[::-1], use_container_width=True)
-        else:
-            st.info("目前還沒有資料，或者無法讀取 Google Sheet。")
-    except:
-        st.warning("無法連線到 Google Sheets，請檢查 secrets 設定。")
+    st.header("📜 雲端資料庫 (Google Sheets)")
+    
+    # 加入重新整理按鈕
+    if st.button("🔄 重新整理資料"):
+        st.cache_data.clear()
+        
+    df = load_data()
+    if not df.empty:
+        st.dataframe(df.iloc[::-1], use_container_width=True)
+    else:
+        st.info("目前雲端資料庫是空的，或讀取中...")
