@@ -3,127 +3,116 @@ import pandas as pd
 from datetime import date
 
 # ==========================================
-# 0. 全局設定與高對比 CSS (Layer 0: High Contrast UI)
+# 0. 全局設定與核彈級 CSS (Layer 0: Total Blackout UI)
 # ==========================================
 st.set_page_config(page_title="PWR-LIFT | 書嫻專屬", page_icon="⚡", layout="centered")
 
-# 強制 CSS 注入 (修復對比度問題)
+# 注入 CSS：強制覆蓋所有元件內部的顏色
 st.markdown("""
     <style>
-    /* 1. 強制全域背景與文字顏色 */
+    /* 1. 網頁總背景：純黑 */
     .stApp {
-        background-color: #000000 !important; /* 純黑背景 */
-        color: #FFFFFF !important; /* 強制白字 */
+        background-color: #000000 !important;
     }
     
-    /* 2. 修正所有標題與文字可讀性 */
-    h1, h2, h3, h4, h5, h6, p, div, span, label {
+    /* 2. 所有文字：強制純白 */
+    h1, h2, h3, h4, h5, h6, p, label, span, div {
         color: #FFFFFF !important;
     }
     
-    /* 3. 修正輸入框與下拉選單 (Streamlit 原生元件黑底白字) */
-    .stSelectbox div[data-baseweb="select"] > div {
+    /* 3. 輸入框 (Input/Number/Text) 內部構造修正 */
+    /* 針對輸入框容器 */
+    div[data-baseweb="input"] {
         background-color: #1E1E1E !important;
+        border-color: #444444 !important;
         color: white !important;
-        border: 1px solid #333 !important;
     }
-    .stTextInput input, .stNumberInput input, .stTextArea textarea {
-        background-color: #1E1E1E !important;
-        color: white !important;
-        border: 1px solid #333 !important;
+    /* 針對輸入框內的文字 */
+    input.st-ai, textarea.st-ai {
+        color: #FFFFFF !important; 
     }
     
-    /* 4. 頂部標題區塊 */
-    .main-header {
-        font-size: 2.2rem;
-        font-weight: 800;
-        background: linear-gradient(90deg, #00C6FF, #0072FF);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-        text-align: center;
-        padding-top: 10px;
-        margin-bottom: 5px;
-        /* 備用方案：如果漸層不支援，顯示藍色 */
-        text-shadow: 0px 0px 0px #00C6FF; 
+    /* 4. 下拉選單 (Selectbox) 修正 */
+    div[data-baseweb="select"] > div {
+        background-color: #1E1E1E !important;
+        color: white !important;
+        border-color: #444444 !important;
+    }
+    /* 下拉後的選單項目 (這是最難改的，必須抓特定層級) */
+    ul[data-baseweb="menu"] {
+        background-color: #1E1E1E !important;
+    }
+    li[data-baseweb="option"] {
+        color: white !important;
     }
     
-    .sub-header {
-        text-align: center;
-        color: #AAAAAA !important; /* 淺灰副標題 */
-        font-size: 0.9rem;
-        margin-bottom: 20px;
+    /* 5. 數字輸入框 (Number Input) 的加減按鈕 */
+    button[kind="secondary"] {
+        background-color: #333333 !important;
+        color: white !important;
+        border: 1px solid #555 !important;
     }
 
-    /* 5. 訓練卡片設計 (高對比版) */
+    /* 6. 訓練卡片 (Card) */
     .workout-card {
-        background-color: #121212; /* 深灰卡片背景 */
-        border: 1px solid #333333;
-        border-left: 5px solid #00C6FF; /* 藍色側邊條 */
-        border-radius: 12px;
+        background-color: #111111;
+        border: 1px solid #333;
+        border-left: 6px solid #00C6FF; /* 藍色亮條 */
+        border-radius: 10px;
         padding: 20px;
         margin-bottom: 15px;
+        box-shadow: 0 4px 6px rgba(255, 255, 255, 0.05);
     }
-
-    /* 動作名稱 */
-    .lift-name {
-        font-size: 1.3rem;
-        font-weight: 700;
-        color: #FFFFFF !important;
-        margin-bottom: 10px;
-    }
-
-    /* 數據標籤 */
+    
+    /* 7. 數據顯色 */
     .stat-label {
-        font-size: 0.75rem;
         color: #888888 !important;
-        text-transform: uppercase;
+        font-size: 0.8rem;
         letter-spacing: 1px;
     }
     .stat-value {
+        color: #00C6FF !important; /* 螢光藍 */
         font-size: 1.6rem;
-        font-weight: 700;
-        color: #00C6FF !important; /* 電光藍數據 */
+        font-weight: 900;
     }
     .stat-value-secondary {
+        color: #FF4B4B !important; /* 螢光紅 */
         font-size: 1.6rem;
-        font-weight: 700;
-        color: #FF4B4B !important; /* 熱力紅數據 */
-    }
-
-    /* 6. 按鈕美化 */
-    .stButton>button {
-        background: #00C6FF !important;
-        color: black !important; /* 按鈕內文字改黑，對比最強 */
-        border: none;
-        border-radius: 8px;
-        font-weight: bold;
-        transition: all 0.2s;
-    }
-    .stButton>button:hover {
-        background: #0072FF !important;
-        color: white !important;
+        font-weight: 900;
     }
     
-    /* 7. Checkbox 文字顏色 */
-    .stCheckbox label p {
-        color: #DDDDDD !important;
-    }
-    
-    /* 8. 備註區塊 */
+    /* 8. 備註區塊 (紅黑高對比) */
     .note-box {
-        background-color: #1E1212;
-        border: 1px solid #5A2323;
-        border-left: 4px solid #FF4B4B;
+        background-color: #2b0c0c; /* 深紅黑 */
+        border: 1px solid #ff4b4b;
+        color: #ffffff !important;
         padding: 15px;
         border-radius: 8px;
-        color: #FFDDDD !important;
         margin-bottom: 20px;
+    }
+    
+    /* 9. 按鈕 (Button) */
+    .stButton > button {
+        background-color: #00C6FF !important;
+        color: #000000 !important;
+        font-weight: bold;
+        border-radius: 8px;
+        border: none;
+    }
+    .stButton > button:hover {
+        background-color: #ffffff !important;
+        box-shadow: 0 0 10px #00C6FF;
+    }
+    
+    /* 10. Checkbox */
+    .stCheckbox label span {
+        color: #dddddd !important;
     }
     </style>
     """, unsafe_allow_html=True)
 
 # ==========================================
-# 1. 核心數據層 (保持不變)
+# 1. 核心數據層 (保持完整)
 # ==========================================
 schedule = {
     "W1 (基礎累積)": {
@@ -237,27 +226,27 @@ schedule = {
 }
 
 # ==========================================
-# 2. 介面層：現代化佈局 (Layer 0: Modern UI)
+# 2. 介面層：全黑化現代佈局 (Layer 0: Total Dark Mode UI)
 # ==========================================
 
-# --- 頂部 Dashboard ---
-st.markdown('<div class="main-header">⚡ PWR-LIFT LOG</div>', unsafe_allow_html=True)
-st.markdown('<div class="sub-header">M1 47kg Class | Road to April 4th</div>', unsafe_allow_html=True)
+# --- 頂部 Header ---
+st.markdown("<h1 style='text-align: center; color: #00C6FF !important;'>⚡ PWR-LIFT LOG</h1>", unsafe_allow_html=True)
+st.markdown("<p style='text-align: center; color: #888888 !important;'>M1 47kg Class | Road to April 4th</p>", unsafe_allow_html=True)
 
 # 比賽倒數計算
 target_date = date(2026, 4, 4)
 today = date.today()
 days_left = (target_date - today).days
 
-# 儀表板 Metrics
+# 儀表板
 col1, col2, col3 = st.columns(3)
-col1.metric("Days Out", f"{days_left} Days")
-col2.metric("Target Total", "240+ kg")
+col1.metric("Days Out", f"{days_left}")
+col2.metric("Target", "240+ kg")
 col3.metric("BW", "49.0 kg")
 
 st.markdown("---")
 
-# --- 選擇器 (Pill 樣式) ---
+# --- 選擇器 (已經過 CSS 強力修正為黑底白字) ---
 c1, c2 = st.columns([2, 1])
 with c1:
     selected_week = st.selectbox("📆 SELECT WEEK", list(schedule.keys()))
@@ -271,7 +260,7 @@ todays_data = schedule[selected_week][selected_day]
 if "Day_Note" in todays_data:
     st.markdown(f'''
     <div class="note-box">
-        <b>💡 COACH'S NOTE:</b><br>
+        <strong style="color: #FF4B4B;">💡 COACH'S NOTE:</strong><br>
         {todays_data["Day_Note"]}
     </div>
     ''', unsafe_allow_html=True)
@@ -311,28 +300,28 @@ else:
     # --- 訓練卡片渲染 Loop ---
     exercises = todays_data["Exercises"]
     
-    # 完成度進度條
+    # 完成度
     st.caption("WORKOUT PROGRESS")
     st.progress(0)
     
     for i, ex in enumerate(exercises):
-        # HTML 卡片結構
+        # 動作標題卡
         st.markdown(f"""
         <div class="workout-card">
-            <div class="lift-name">{ex['Lift']}</div>
+            <div style="font-size: 1.3rem; font-weight: bold; color: white;">{ex['Lift']}</div>
         </div>
         """, unsafe_allow_html=True)
         
-        # 數據與互動
+        # 數據區
         c1, c2, c3 = st.columns([1.5, 1, 1])
         with c1:
-            st.markdown(f"<div class='stat-label'>WEIGHT</div><div class='stat-value'>{ex['Weight']}<span style='font-size:1rem'>kg</span></div>", unsafe_allow_html=True)
+            st.markdown(f"<div class='stat-label'>WEIGHT</div><div class='stat-value'>{ex['Weight']}<span style='font-size:1rem; color:#888;'>kg</span></div>", unsafe_allow_html=True)
         with c2:
             st.markdown(f"<div class='stat-label'>SETS</div><div class='stat-value-secondary'>{ex['Sets']}</div>", unsafe_allow_html=True)
         with c3:
             st.markdown(f"<div class='stat-label'>REPS</div><div class='stat-value-secondary'>{ex['Reps']}</div>", unsafe_allow_html=True)
             
-        st.markdown(f"<div style='color:#CCCCCC; font-size:0.9rem; margin-top:5px; margin-bottom:10px;'>🎯 RPE: {ex['RPE']} | 📝 {ex['Note']}</div>", unsafe_allow_html=True)
+        st.markdown(f"<div style='color:#CCCCCC; margin-top:5px; margin-bottom:10px;'>🎯 RPE: {ex['RPE']} | 📝 {ex['Note']}</div>", unsafe_allow_html=True)
         
         # Checkbox 互動區
         if isinstance(ex['Sets'], int):
@@ -340,13 +329,14 @@ else:
             for j in range(ex['Sets']):
                 cols[j].checkbox(f"S{j+1}", key=f"{selected_week}_{selected_day}_{ex['Lift']}_{j}")
         else:
-             st.checkbox("✅ SETS COMPLETE", key=f"{selected_week}_{selected_day}_{ex['Lift']}_all")
+             st.checkbox("✅ ALL SETS DONE", key=f"{selected_week}_{selected_day}_{ex['Lift']}_all")
         
-        st.markdown("<div style='margin-bottom: 20px;'></div>", unsafe_allow_html=True)
+        st.markdown("<div style='margin-bottom: 25px;'></div>", unsafe_allow_html=True)
 
     # --- 底部筆記 ---
     st.markdown("---")
-    st.text_area("POST-WORKOUT LOG", height=100, placeholder="紀錄一下今天的 RPE 或哪裡痠痛...")
+    st.markdown("### 📝 SESSION LOG")
+    st.text_area("筆記區 (Note)", height=100, placeholder="紀錄一下今天的 RPE 或哪裡痠痛...")
     
     if st.button("💾 SAVE WORKOUT"):
         st.success("SESSION SAVED.")
