@@ -1,68 +1,68 @@
 import streamlit as st
 import pandas as pd
 from datetime import datetime
-from streamlit_gsheets import GSheetsConnection
 
 # ==========================================
-# 0. 設定與 Google Sheets 連線 (Layer 1: Cloud Kernel)
+# 0. 系統核心 (Layer 0: Session State Kernel)
 # ==========================================
 st.set_page_config(page_title="書嫻訓練日誌", page_icon="🏋️‍♀️")
 
-# 標題區
-st.title("🏋️‍♀️ 書嫻一月備賽日誌")
-st.caption("M1 47kg Class | Road to April 4th")
-
-# --- 建立連線 ---
-try:
-    conn = st.connection("gsheets", type=GSheetsConnection)
-except Exception as e:
-    st.error("⚠️ 連線失敗！請檢查 Streamlit Cloud 的 Secrets 設定。")
-    st.stop()
-
-# --- 讀取資料函數 ---
-def load_data():
-    try:
-        # ttl=0 代表不快取，每次都抓最新的
-        df = conn.read(worksheet="Log", ttl=0)
-        # 如果讀出來是空的，回傳一個標準格式
-        if df.empty:
-            return pd.DataFrame(columns=["Date", "Week", "Day", "Type", "Squat", "Bench", "Deadlift", "Note"])
-        return df
-    except:
-        return pd.DataFrame(columns=["Date", "Week", "Day", "Type", "Squat", "Bench", "Deadlift", "Note"])
-
-# --- 寫入資料函數 ---
-def save_log(week, day, type_of_day, sq_val, bp_val, dl_val, note):
-    try:
-        df = load_data()
-        
-        # 準備新的一筆資料
-        new_entry = pd.DataFrame([{
-            "Date": datetime.now().strftime("%Y-%m-%d %H:%M"),
-            "Week": week,
-            "Day": day,
-            "Type": type_of_day,
-            "Squat": sq_val,
-            "Bench": bp_val,
-            "Deadlift": dl_val,
-            "Note": note
-        }])
-        
-        # 合併並寫回
-        # 如果原本的 df 有資料，就合併；如果是空的，就直接用新的
-        if not df.empty:
-            updated_df = pd.concat([df, new_entry], ignore_index=True)
-        else:
-            updated_df = new_entry
-            
-        conn.update(worksheet="Log", data=updated_df)
-        return True
-    except Exception as e:
-        st.error(f"儲存失敗: {e}")
-        return False
+# 初始化：確保記憶體裡有一個 DataFrame 可以存資料
+if 'log_df' not in st.session_state:
+    st.session_state['log_df'] = pd.DataFrame(columns=["Date", "Week", "Day", "Type", "Squat", "Bench", "Deadlift", "Note"])
 
 # ==========================================
-# 1. 課表數據 (完整保留)
+# 1. 側邊欄：存檔與讀檔區 (File I/O)
+# ==========================================
+with st.sidebar:
+    st.header("📂 檔案管理中心")
+    st.info("💡 邏輯：每次練完請「下載」保存；下次要練時請先「上傳」舊檔。")
+    
+    # --- A. 讀取舊檔 ---
+    uploaded_file = st.file_uploader("1️⃣ 上傳上次的 CSV (讀檔)", type=["csv"])
+    if uploaded_file is not None:
+        try:
+            # 讀取上傳的檔案並更新到記憶體
+            uploaded_df = pd.read_csv(uploaded_file)
+            st.session_state['log_df'] = uploaded_df
+            st.success(f"✅ 成功讀取！包含 {len(uploaded_df)} 筆歷史紀錄。")
+        except Exception as e:
+            st.error("⚠️ 檔案格式錯誤，請確認是正確的 CSV。")
+
+    st.markdown("---")
+
+    # --- B. 下載新檔 ---
+    # 將目前的記憶體轉成 CSV
+    csv_data = st.session_state['log_df'].to_csv(index=False).encode('utf-8')
+    
+    st.download_button(
+        label="2️⃣ 下載最新紀錄 (存檔)",
+        data=csv_data,
+        file_name="gym_history.csv",
+        mime="text/csv",
+        type="primary"  # 讓按鈕變顯眼
+    )
+
+# ==========================================
+# 2. 寫入資料函數 (更新 Session State)
+# ==========================================
+def save_to_session(week, day, type_of_day, sq_val, bp_val, dl_val, note):
+    new_entry = pd.DataFrame([{
+        "Date": datetime.now().strftime("%Y-%m-%d %H:%M"),
+        "Week": week,
+        "Day": day,
+        "Type": type_of_day,
+        "Squat": sq_val,
+        "Bench": bp_val,
+        "Deadlift": dl_val,
+        "Note": note
+    }])
+    
+    # 將新資料合併到 Session State
+    st.session_state['log_df'] = pd.concat([st.session_state['log_df'], new_entry], ignore_index=True)
+
+# ==========================================
+# 3. 課表數據 (完整保留)
 # ==========================================
 schedule = {
     "W1 (基礎累積)": {
@@ -176,11 +176,14 @@ schedule = {
 }
 
 # ==========================================
-# 2. 介面層
+# 4. 介面層
 # ==========================================
 
-# 建立兩個分頁
-tab1, tab2 = st.tabs(["🔥 今日訓練", "📜 雲端歷史紀錄"])
+st.title("🏋️‍♀️ 書嫻一月備賽日誌")
+st.caption("M1 47kg Class | Road to April 4th")
+
+# 建立分頁
+tab1, tab2 = st.tabs(["🔥 今日訓練", "📜 歷史數據 (請定期下載)"])
 
 # --- Tab 1: 今日訓練 ---
 with tab1:
@@ -192,11 +195,13 @@ with tab1:
 
     todays_data = schedule[selected_week][selected_day]
 
+    # 教練備註
     if "Day_Note" in todays_data:
         st.info(f"💡 教練備註：{todays_data['Day_Note']}")
-
+    
     st.divider()
 
+    # 邏輯分歧：測驗日 vs 訓練日
     if "IsTestDay" in todays_data and todays_data["IsTestDay"]:
         st.header("🏆 測驗日 (Testing Day)")
         st.warning("今天是大日子！請注意安全。")
@@ -220,13 +225,12 @@ with tab1:
             note_test = st.text_area("測驗心得")
 
             st.divider()
-            submitted = st.form_submit_button("🚀 儲存測驗成績 (上傳雲端)")
+            submitted = st.form_submit_button("🚀 儲存測驗成績")
             
             if submitted:
-                success = save_log(selected_week, selected_day, "Testing", sq_result, bp_result, dl_result, note_test)
-                if success:
-                    st.balloons()
-                    st.success("🎉 成績已安全上傳至 Google Sheets！")
+                save_to_session(selected_week, selected_day, "Testing", sq_result, bp_result, dl_result, note_test)
+                st.balloons()
+                st.success("🎉 成績已暫存！請記得按側邊欄的「下載」按鈕來保存檔案。")
 
     else:
         # 一般訓練日
@@ -249,21 +253,16 @@ with tab1:
 
         user_note = st.text_area("訓練筆記", height=100, placeholder="紀錄一下...")
         
-        if st.button("💾 儲存今日訓練 (上傳雲端)"):
-            success = save_log(selected_week, selected_day, "Training", "-", "-", "-", user_note)
-            if success:
-                st.success("✅ 訓練筆記已安全上傳至 Google Sheets！")
+        if st.button("💾 儲存今日訓練"):
+            save_to_session(selected_week, selected_day, "Training", "-", "-", "-", user_note)
+            st.success("✅ 紀錄已暫存！請記得按側邊欄的「下載」按鈕來保存檔案。")
 
 # --- Tab 2: 歷史紀錄 ---
 with tab2:
-    st.header("📜 雲端資料庫 (Google Sheets)")
+    st.header("📊 目前的紀錄數據")
+    st.caption("這裡顯示的是您「目前讀取中」的資料。")
     
-    # 加入重新整理按鈕
-    if st.button("🔄 重新整理資料"):
-        st.cache_data.clear()
-        
-    df = load_data()
-    if not df.empty:
-        st.dataframe(df.iloc[::-1], use_container_width=True)
+    if not st.session_state['log_df'].empty:
+        st.dataframe(st.session_state['log_df'].iloc[::-1], use_container_width=True)
     else:
-        st.info("目前雲端資料庫是空的，或讀取中...")
+        st.info("目前沒有資料。請上傳舊檔，或開始新的訓練紀錄。")
