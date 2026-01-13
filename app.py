@@ -1,96 +1,13 @@
 import streamlit as st
 import pandas as pd
-from datetime import date
 
 # ==========================================
-# 0. 全局設定 (Layer 0: Fail-Safe High Contrast)
+# 0. 設定 (移除所有自定義顏色 CSS)
 # ==========================================
-st.set_page_config(page_title="PWR-LIFT | 書嫻專屬", page_icon="⚡", layout="centered")
-
-# 注入 CSS：策略改變 -> 背景全黑，但輸入框強制全白，確保100%看得到字
-st.markdown("""
-    <style>
-    /* 1. 網頁總背景：純黑 */
-    .stApp {
-        background-color: #000000 !important;
-    }
-    
-    /* 2. 標題與一般文字：白色 */
-    h1, h2, h3, h4, h5, h6, p, label, span, div {
-        color: #FFFFFF !important;
-    }
-    
-    /* 3. 【關鍵修正】輸入框 (Input/Number/Text/Select) 強制「白底黑字」 */
-    /* 這會讓輸入框變成白色的方塊，絕對不會再黑吃黑 */
-    input, textarea, select {
-        background-color: #FFFFFF !important;
-        color: #000000 !important;
-        font-weight: bold !important;
-    }
-    
-    /* 針對 Streamlit 的特定元件外框 */
-    div[data-baseweb="input"], div[data-baseweb="base-input"], div[data-baseweb="select"] > div {
-        background-color: #FFFFFF !important;
-        color: #000000 !important;
-        border: 2px solid #00C6FF !important; /* 藍色邊框 */
-        border-radius: 5px !important;
-    }
-    
-    /* 下拉選單的文字顏色修正 */
-    div[data-baseweb="select"] span {
-        color: #000000 !important; 
-    }
-    
-    /* 下拉選單彈出的列表 (Popover) */
-    ul[data-baseweb="menu"] {
-        background-color: #FFFFFF !important;
-    }
-    li[data-baseweb="option"] {
-        color: #000000 !important; /* 選單選項：黑字 */
-    }
-    
-    /* 4. 數字輸入框的加減按鈕 */
-    button[kind="secondary"] {
-        background-color: #e0e0e0 !important;
-        color: black !important;
-    }
-
-    /* 5. 訓練卡片 */
-    .workout-card {
-        background-color: #1a1a1a; /* 深灰底 */
-        border: 1px solid #444;
-        border-left: 6px solid #00C6FF;
-        border-radius: 10px;
-        padding: 20px;
-        margin-bottom: 15px;
-    }
-    
-    /* 6. 數據顯色 */
-    .stat-label { color: #aaaaaa !important; font-size: 0.8rem; }
-    .stat-value { color: #00C6FF !important; font-size: 1.6rem; font-weight: 900; }
-    .stat-value-secondary { color: #FF4B4B !important; font-size: 1.6rem; font-weight: 900; }
-    
-    /* 7. 按鈕 */
-    .stButton > button {
-        background-color: #00C6FF !important;
-        color: #000000 !important;
-        font-weight: bold;
-        border: none;
-    }
-    
-    /* 8. 備註區 */
-    .note-box {
-        background-color: #330000;
-        border: 1px solid #ff0000;
-        padding: 15px;
-        border-radius: 8px;
-        margin-bottom: 20px;
-    }
-    </style>
-    """, unsafe_allow_html=True)
+st.set_page_config(page_title="書嫻訓練課表", page_icon="🏋️‍♀️")
 
 # ==========================================
-# 1. 核心數據 (不變)
+# 1. 核心數據 (完整保留您的課表)
 # ==========================================
 schedule = {
     "W1 (基礎累積)": {
@@ -204,96 +121,80 @@ schedule = {
 }
 
 # ==========================================
-# 2. 介面層
+# 2. 介面層 (純淨原生版)
 # ==========================================
 
-st.markdown("<h1 style='text-align: center; color: #00C6FF !important;'>⚡ PWR-LIFT LOG</h1>", unsafe_allow_html=True)
-st.markdown("<p style='text-align: center; color: #888888 !important;'>M1 47kg Class | Road to April 4th</p>", unsafe_allow_html=True)
-
-# 儀表板
-col1, col2, col3 = st.columns(3)
-col1.metric("Days Out", f"{(date(2026, 4, 4) - date.today()).days}")
-col2.metric("Target", "240+ kg")
-col3.metric("BW", "49.0 kg")
-
-st.markdown("---")
+st.title("🏋️‍♀️ 書嫻一月備賽日誌")
+st.caption("M1 47kg Class | Road to April 4th")
 
 # 選擇器
 c1, c2 = st.columns([2, 1])
 with c1:
-    selected_week = st.selectbox("📆 SELECT WEEK", list(schedule.keys()))
+    selected_week = st.selectbox("選擇週次", list(schedule.keys()))
 with c2:
-    selected_day = st.selectbox("📍 DAY", ["D1", "D2", "D3"])
+    selected_day = st.selectbox("選擇訓練日", ["D1", "D2", "D3"])
 
 todays_data = schedule[selected_week][selected_day]
 
+# 顯示教練備註
 if "Day_Note" in todays_data:
-    st.markdown(f'''
-    <div class="note-box">
-        <strong style="color: #FF4B4B;">💡 COACH'S NOTE:</strong><br>
-        {todays_data["Day_Note"]}
-    </div>
-    ''', unsafe_allow_html=True)
+    st.info(f"💡 教練備註：{todays_data['Day_Note']}")
 
+st.divider()
+
+# 邏輯分歧：測驗日 vs 訓練日
 if "IsTestDay" in todays_data and todays_data["IsTestDay"]:
-    st.markdown('<h2 style="text-align:center; color:#FF4B4B !important;">🏆 TESTING DAY</h2>', unsafe_allow_html=True)
-    st.info("今天是大日子！深呼吸，專注，爆發！")
+    st.header("🏆 測驗日 (Testing Day)")
+    st.warning("今天是大日子！請注意安全。")
 
     with st.form("test_day_form"):
-        st.markdown("### 🔴 SQUAT")
+        st.subheader("🔴 深蹲 (Squat)")
         c1, c2 = st.columns(2)
-        sq_result = c1.number_input("Max Weight (kg)", 0.0, 200.0, 100.0, key="sq")
-        c2.markdown("#### Goal: 100+")
+        sq_result = c1.number_input("成績 (kg)", min_value=0.0, value=100.0, key="sq")
+        c2.markdown("**目標: 100+**")
         
-        st.markdown("### 🔵 BENCH PRESS")
+        st.subheader("🔵 臥推 (Bench Press)")
         c3, c4 = st.columns(2)
-        bp_result = c3.number_input("Max Weight (kg)", 0.0, 100.0, 37.5, key="bp")
-        c4.markdown("#### Goal: 37.5+")
+        bp_result = c3.number_input("成績 (kg)", min_value=0.0, value=37.5, key="bp")
+        c4.markdown("**目標: 37.5+**")
         
-        st.markdown("### 🟡 DEADLIFT")
+        st.subheader("🟡 硬舉 (Deadlift)")
         c5, c6 = st.columns(2)
-        dl_result = c5.number_input("Max Weight (kg)", 0.0, 200.0, 100.0, key="dl")
-        c6.markdown("#### Goal: 100+")
+        dl_result = c5.number_input("成績 (kg)", min_value=0.0, value=100.0, key="dl")
+        c6.markdown("**目標: 100+**")
 
-        st.markdown("---")
-        submitted = st.form_submit_button("🚀 SUBMIT RESULTS")
+        st.divider()
+        submitted = st.form_submit_button("🚀 送出成績")
         if submitted:
             total = sq_result + bp_result + dl_result
             st.balloons()
-            st.success(f"🎉 TOTAL: {total} kg!")
+            st.success(f"🎉 總和成績: {total} kg！已記錄。")
 
 else:
+    # 一般訓練日
     exercises = todays_data["Exercises"]
-    st.progress(0)
     
-    for i, ex in enumerate(exercises):
-        st.markdown(f"""
-        <div class="workout-card">
-            <div style="font-size: 1.3rem; font-weight: bold; color: white;">{ex['Lift']}</div>
-        </div>
-        """, unsafe_allow_html=True)
+    for ex in exercises:
+        st.subheader(f"🔹 {ex['Lift']}")
         
-        c1, c2, c3 = st.columns([1.5, 1, 1])
-        with c1:
-            st.markdown(f"<div class='stat-label'>WEIGHT</div><div class='stat-value'>{ex['Weight']}<span style='font-size:1rem; color:#888;'>kg</span></div>", unsafe_allow_html=True)
-        with c2:
-            st.markdown(f"<div class='stat-label'>SETS</div><div class='stat-value-secondary'>{ex['Sets']}</div>", unsafe_allow_html=True)
-        with c3:
-            st.markdown(f"<div class='stat-label'>REPS</div><div class='stat-value-secondary'>{ex['Reps']}</div>", unsafe_allow_html=True)
-            
-        st.markdown(f"<div style='color:#CCCCCC; margin-top:5px; margin-bottom:10px;'>🎯 RPE: {ex['RPE']} | 📝 {ex['Note']}</div>", unsafe_allow_html=True)
+        # 數據展示
+        c1, c2, c3 = st.columns(3)
+        c1.metric("重量 (kg)", ex['Weight'])
+        c2.metric("組數", ex['Sets'])
+        c3.metric("次數", ex['Reps'])
         
+        st.caption(f"🎯 RPE: {ex['RPE']} | 📝 {ex['Note']}")
+        
+        # 勾選框
         if isinstance(ex['Sets'], int):
             cols = st.columns(ex['Sets'])
             for j in range(ex['Sets']):
-                cols[j].checkbox(f"S{j+1}", key=f"{selected_week}_{selected_day}_{ex['Lift']}_{j}")
+                cols[j].checkbox(f"第 {j+1} 組", key=f"{selected_week}_{selected_day}_{ex['Lift']}_{j}")
         else:
-             st.checkbox("✅ ALL SETS DONE", key=f"{selected_week}_{selected_day}_{ex['Lift']}_all")
+             st.checkbox("✅ 完成所有組數", key=f"{selected_week}_{selected_day}_{ex['Lift']}_all")
         
-        st.markdown("<div style='margin-bottom: 25px;'></div>", unsafe_allow_html=True)
+        st.divider()
 
-    st.markdown("---")
-    st.text_area("POST-WORKOUT LOG", height=100, placeholder="RPE 感受...")
-    if st.button("💾 SAVE WORKOUT"):
-        st.success("SESSION SAVED.")
-        st.balloons()
+    st.text_area("訓練筆記", height=100, placeholder="紀錄一下今天的狀況...")
+    if st.button("💾 儲存訓練紀錄"):
+        st.success("訓練已儲存！")
