@@ -1,13 +1,58 @@
 import streamlit as st
 import pandas as pd
+from datetime import datetime
+from streamlit_gsheets import GSheetsConnection
 
 # ==========================================
-# 0. 設定 (移除所有自定義顏色 CSS)
+# 0. 設定與 Google Sheets 連結
 # ==========================================
-st.set_page_config(page_title="書嫻訓練課表", page_icon="🏋️‍♀️")
+st.set_page_config(page_title="書嫻訓練日誌", page_icon="🏋️‍♀️")
+
+st.title("🏋️‍♀️ 書嫻一月備賽日誌")
+st.caption("M1 47kg Class | Road to April 4th")
+
+# --- 連結 Google Sheets ---
+# 建立連線物件
+try:
+    conn = st.connection("gsheets", type=GSheetsConnection)
+except Exception as e:
+    st.error("⚠️ 尚未設定 Google Sheets 連線！請檢查 .streamlit/secrets.toml")
+    st.stop()
+
+# --- 讀取資料函數 ---
+def load_data():
+    try:
+        # 讀取試算表，如果空的會報錯，所以要 try-except
+        df = conn.read(worksheet="Log", ttl=0) # ttl=0 表示不快取，每次都抓最新的
+        return df
+    except:
+        # 如果讀不到 (可能是新表)，回傳空的 DataFrame
+        return pd.DataFrame(columns=["Date", "Week", "Day", "Type", "Squat", "Bench", "Deadlift", "Note"])
+
+# --- 寫入資料函數 ---
+def save_log(week, day, type_of_day, sq_val, bp_val, dl_val, note):
+    df = load_data()
+    
+    new_entry = pd.DataFrame([{
+        "Date": datetime.now().strftime("%Y-%m-%d %H:%M"),
+        "Week": week,
+        "Day": day,
+        "Type": type_of_day,
+        "Squat": sq_val,
+        "Bench": bp_val,
+        "Deadlift": dl_val,
+        "Note": note
+    }])
+    
+    # 合併新舊資料
+    updated_df = pd.concat([df, new_entry], ignore_index=True)
+    
+    # 寫回 Google Sheet
+    conn.update(worksheet="Log", data=updated_df)
+    return updated_df
 
 # ==========================================
-# 1. 核心數據 (完整保留您的課表)
+# 1. 課表數據 (完整保留)
 # ==========================================
 schedule = {
     "W1 (基礎累積)": {
@@ -121,80 +166,90 @@ schedule = {
 }
 
 # ==========================================
-# 2. 介面層 (純淨原生版)
+# 2. 介面層
 # ==========================================
 
-st.title("🏋️‍♀️ 書嫻一月備賽日誌")
-st.caption("M1 47kg Class | Road to April 4th")
+# 建立兩個分頁
+tab1, tab2 = st.tabs(["🔥 今日訓練", "📜 歷史紀錄 (Google Sheet)"])
 
-# 選擇器
-c1, c2 = st.columns([2, 1])
-with c1:
-    selected_week = st.selectbox("選擇週次", list(schedule.keys()))
-with c2:
-    selected_day = st.selectbox("選擇訓練日", ["D1", "D2", "D3"])
+# --- Tab 1: 今日訓練 ---
+with tab1:
+    c1, c2 = st.columns([2, 1])
+    with c1:
+        selected_week = st.selectbox("選擇週次", list(schedule.keys()))
+    with c2:
+        selected_day = st.selectbox("選擇訓練日", ["D1", "D2", "D3"])
 
-todays_data = schedule[selected_week][selected_day]
+    todays_data = schedule[selected_week][selected_day]
 
-# 顯示教練備註
-if "Day_Note" in todays_data:
-    st.info(f"💡 教練備註：{todays_data['Day_Note']}")
+    if "Day_Note" in todays_data:
+        st.info(f"💡 教練備註：{todays_data['Day_Note']}")
 
-st.divider()
+    st.divider()
 
-# 邏輯分歧：測驗日 vs 訓練日
-if "IsTestDay" in todays_data and todays_data["IsTestDay"]:
-    st.header("🏆 測驗日 (Testing Day)")
-    st.warning("今天是大日子！請注意安全。")
+    if "IsTestDay" in todays_data and todays_data["IsTestDay"]:
+        st.header("🏆 測驗日 (Testing Day)")
+        st.warning("今天是大日子！請注意安全。")
 
-    with st.form("test_day_form"):
-        st.subheader("🔴 深蹲 (Squat)")
-        c1, c2 = st.columns(2)
-        sq_result = c1.number_input("成績 (kg)", min_value=0.0, value=100.0, key="sq")
-        c2.markdown("**目標: 100+**")
+        with st.form("test_day_form"):
+            st.subheader("🔴 深蹲 (Squat)")
+            c1, c2 = st.columns(2)
+            sq_result = c1.number_input("成績 (kg)", min_value=0.0, value=100.0, key="sq")
+            c2.markdown("**目標: 100+**")
+            
+            st.subheader("🔵 臥推 (Bench Press)")
+            c3, c4 = st.columns(2)
+            bp_result = c3.number_input("成績 (kg)", min_value=0.0, value=37.5, key="bp")
+            c4.markdown("**目標: 37.5+**")
+            
+            st.subheader("🟡 硬舉 (Deadlift)")
+            c5, c6 = st.columns(2)
+            dl_result = c5.number_input("成績 (kg)", min_value=0.0, value=100.0, key="dl")
+            c6.markdown("**目標: 100+**")
+            
+            note_test = st.text_area("測驗心得")
+
+            st.divider()
+            submitted = st.form_submit_button("🚀 儲存測驗成績")
+            
+            if submitted:
+                save_log(selected_week, selected_day, "Testing", sq_result, bp_result, dl_result, note_test)
+                st.balloons()
+                st.success("🎉 成績已上傳至 Google Sheets！")
+
+    else:
+        # 一般訓練日
+        exercises = todays_data["Exercises"]
+        for ex in exercises:
+            st.subheader(f"🔹 {ex['Lift']}")
+            c1, c2, c3 = st.columns(3)
+            c1.metric("重量 (kg)", ex['Weight'])
+            c2.metric("組數", ex['Sets'])
+            c3.metric("次數", ex['Reps'])
+            st.caption(f"🎯 RPE: {ex['RPE']} | 📝 {ex['Note']}")
+            
+            if isinstance(ex['Sets'], int):
+                cols = st.columns(ex['Sets'])
+                for j in range(ex['Sets']):
+                    cols[j].checkbox(f"Set {j+1}", key=f"{selected_week}_{selected_day}_{ex['Lift']}_{j}")
+            else:
+                st.checkbox("✅ 完成", key=f"{selected_week}_{selected_day}_{ex['Lift']}_all")
+            st.divider()
+
+        user_note = st.text_area("訓練筆記", height=100, placeholder="紀錄一下...")
         
-        st.subheader("🔵 臥推 (Bench Press)")
-        c3, c4 = st.columns(2)
-        bp_result = c3.number_input("成績 (kg)", min_value=0.0, value=37.5, key="bp")
-        c4.markdown("**目標: 37.5+**")
-        
-        st.subheader("🟡 硬舉 (Deadlift)")
-        c5, c6 = st.columns(2)
-        dl_result = c5.number_input("成績 (kg)", min_value=0.0, value=100.0, key="dl")
-        c6.markdown("**目標: 100+**")
+        if st.button("💾 儲存今日訓練紀錄"):
+            save_log(selected_week, selected_day, "Training", "-", "-", "-", user_note)
+            st.success("✅ 訓練筆記已上傳至 Google Sheets！")
 
-        st.divider()
-        submitted = st.form_submit_button("🚀 送出成績")
-        if submitted:
-            total = sq_result + bp_result + dl_result
-            st.balloons()
-            st.success(f"🎉 總和成績: {total} kg！已記錄。")
-
-else:
-    # 一般訓練日
-    exercises = todays_data["Exercises"]
-    
-    for ex in exercises:
-        st.subheader(f"🔹 {ex['Lift']}")
-        
-        # 數據展示
-        c1, c2, c3 = st.columns(3)
-        c1.metric("重量 (kg)", ex['Weight'])
-        c2.metric("組數", ex['Sets'])
-        c3.metric("次數", ex['Reps'])
-        
-        st.caption(f"🎯 RPE: {ex['RPE']} | 📝 {ex['Note']}")
-        
-        # 勾選框
-        if isinstance(ex['Sets'], int):
-            cols = st.columns(ex['Sets'])
-            for j in range(ex['Sets']):
-                cols[j].checkbox(f"第 {j+1} 組", key=f"{selected_week}_{selected_day}_{ex['Lift']}_{j}")
+# --- Tab 2: 歷史紀錄 ---
+with tab2:
+    st.header("📜 來自 Google Sheets 的紀錄")
+    try:
+        df = load_data()
+        if not df.empty:
+            st.dataframe(df.iloc[::-1], use_container_width=True)
         else:
-             st.checkbox("✅ 完成所有組數", key=f"{selected_week}_{selected_day}_{ex['Lift']}_all")
-        
-        st.divider()
-
-    st.text_area("訓練筆記", height=100, placeholder="紀錄一下今天的狀況...")
-    if st.button("💾 儲存訓練紀錄"):
-        st.success("訓練已儲存！")
+            st.info("目前還沒有資料，或者無法讀取 Google Sheet。")
+    except:
+        st.warning("無法連線到 Google Sheets，請檢查 secrets 設定。")
